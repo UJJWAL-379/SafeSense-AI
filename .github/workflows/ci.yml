@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  smoke-test:
+  backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,3 +20,20 @@ jobs:
         run: python -m compileall backend dashboard tests
       - name: Run SafeSense smoke test
         run: python tests/smoke_test.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm install
+      - name: Build Bolt-publishable frontend
+        run: npm run build
