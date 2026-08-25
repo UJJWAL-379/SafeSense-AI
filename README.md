@@ -6,17 +6,17 @@ SafeSense turns messy workplace safety reports into **structured risk signals** 
 
 > **Hackathon value proposition:** reports already exist — SafeSense makes them searchable, comparable and actionable at scale.
 
-## 🎯 The judge demo in 60 seconds
+## 🎯 Judge demo in 60 seconds
 
-1. Start the FastAPI backend.
-2. Start the Streamlit dashboard.
-3. Open **Precursor cluster demo**.
-4. Select all demo reports.
-5. Click **Detect Emerging Safety Risks**.
-6. Show that RPT-001, RPT-002, RPT-005 and RPT-007 all point to **Zone B · Tower 3 / fall risk**.
-7. The system raises a **CRITICAL emerging precursor cluster** and explains the recommended action.
-8. Switch to **Live report**, paste a messy Hinglish/English note, and show structured extraction.
-9. Optionally upload a TXT/PDF/image to demonstrate the ingestion/OCR path.
+1. Open the published web frontend or run `frontend/` locally.
+2. Open **Precursor cluster demo**.
+3. Keep all eight demo reports selected.
+4. Click **Detect Emerging Safety Risks**.
+5. Show RPT-001, RPT-002, RPT-005 and RPT-007 converging on **Zone B · Tower 3 / fall risk**.
+6. The system raises a **CRITICAL emerging precursor cluster** and recommends an immediate safety inspection.
+7. Switch to **Live report** and paste a messy Hinglish/English note.
+8. Show the structured hazard, location, severity, risk score and urgency.
+9. If desired, use the Streamlit dashboard for PDF/image OCR and safety-officer feedback.
 
 The key story is: **minor reports individually → repeated pattern collectively → early warning.**
 
@@ -48,18 +48,23 @@ PDF / Image / TXT / WhatsApp / Email / Excel
                     ▼
           Emerging precursor alert
                     │
+          ┌─────────┴─────────┐
+          ▼                   ▼
+   React/Bolt web UI      Streamlit UI
+                    │
                     ▼
-             Streamlit dashboard
+                 Judges
 ```
 
 ## ✨ Features
 
 - Raw safety-report text analysis
-- TXT/PDF/image upload through the backend
+- TXT/PDF/image upload through the FastAPI backend
 - OCR using Tesseract for images
 - PDF text extraction using pypdf
+- Excel-ready ingestion path
 - Optional OpenAI structured extraction
-- Deterministic local fallback — **the demo works without an API key**
+- Deterministic local fallback — **the core demo works without an API key**
 - Hazard classification: fall, electrical, chemical, fire, equipment, lifting, housekeeping
 - Location and asset extraction
 - Severity and explainable 0–100 risk score
@@ -67,17 +72,41 @@ PDF / Image / TXT / WhatsApp / Email / Excel
 - Cross-report hazard/location clustering
 - CRITICAL/HIGH/MEDIUM emerging-risk levels
 - Recommended corrective action
-- Dashboard charts and report-level drilldown
+- Webhook alert integration
+- Safety-officer confirm/reject feedback loop
+- SQLite persistence for the prototype
+- Responsive React/Vite judge-facing frontend
+- Streamlit dashboard for local/demo workflows
+- Dockerized FastAPI backend
+- Health endpoint and deployment configuration
 
-## 🧪 Demo dataset
+## 🖥️ Published web frontend
 
-`data/precursor_export.json` is based on the supplied precursor-safety-dashboard prototype and includes different source types such as Inspector Log, WhatsApp, Excel, PDF Scan and Email. The strongest demo cluster is **Zone B · Tower 3**, where four separate reports describe recurring fall/scaffolding precursors.
+The `frontend/` directory is a lightweight Vite + React judge-facing application designed to be imported into Bolt and published. It calls the FastAPI backend through `VITE_API_URL`.
+
+For local frontend development:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Set `VITE_API_URL` to the backend URL when the API is not running on `http://localhost:8000`.
+
+### Bolt publishing
+
+Bolt's official QuickStart describes the final publishing flow as **Publish → Publish confirmation → wait for deployment → open the published URL**. urlBolt QuickStart — Publish your projecthttps://support.bolt.new/get-started/quickstart#part-8-publish-your-project
+
+See [`docs/BOLT_PUBLISH.md`](docs/BOLT_PUBLISH.md) for the recommended architecture and exact judge-demo setup.
+
+**Important:** Bolt hosts the browser-facing web experience. The Python FastAPI service still needs to be deployed separately over HTTPS for live AI analysis. Do not expose `OPENAI_API_KEY` in frontend environment variables.
 
 ## 🚀 Run locally
 
 Requires Python 3.10+.
 
-### Terminal 1 — backend
+### Backend
 
 ```bash
 python -m venv .venv
@@ -95,50 +124,59 @@ macOS/Linux:
 source .venv/bin/activate
 ```
 
-Install:
-
 ```bash
 pip install -r requirements.txt
-```
-
-Optional LLM configuration:
-
-```bash
-copy .env.example .env
-```
-
-or on macOS/Linux:
-
-```bash
 cp .env.example .env
-```
-
-Then put your API key in `.env` if you want LLM mode. Otherwise leave it empty.
-
-Start API:
-
-```bash
 uvicorn backend.main:app --reload
 ```
 
-### Terminal 2 — dashboard
+API docs are available at `/docs` and health at `/health`.
+
+### Streamlit fallback dashboard
+
+In another terminal:
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-Open the local Streamlit URL shown in the terminal.
+### React web frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## ☁️ Production/demo deployment
+
+The backend includes a Dockerfile and `render.yaml` deployment configuration. Deploy the FastAPI service and obtain its HTTPS URL. Then set the frontend's:
+
+```text
+VITE_API_URL=https://YOUR-BACKEND.example.com
+```
+
+Also configure backend CORS:
+
+```text
+CORS_ORIGINS=https://YOUR-BOLT-PUBLISHED-DOMAIN.example.com
+```
+
+Keep `OPENAI_API_KEY` and `ALERT_WEBHOOK_URL` on the backend only.
 
 ## 🔌 API endpoints
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /health` | Backend health check |
+| `GET /` | Service metadata and links |
+| `GET /health` | Deployment health check |
 | `POST /analyze` | Analyze one text report |
-| `POST /analyze-file` | Analyze TXT/PDF/image upload |
+| `POST /analyze-file` | Analyze TXT/PDF/image/Excel upload |
 | `POST /cluster` | Analyze multiple reports and detect recurring clusters |
+| `POST /feedback` | Save safety-officer confirmation/rejection |
+| `GET /feedback-summary` | Feedback counts |
 
-Example request:
+Example:
 
 ```bash
 curl -X POST http://localhost:8000/analyze \
@@ -157,23 +195,46 @@ OPENAI_MODEL=gpt-4o-mini
 
 If the LLM is unavailable, SafeSense automatically falls back to the local explainable extractor. This is deliberate for hackathon reliability.
 
+## 🧪 Demo dataset
+
+`data/precursor_export.json` is based on the supplied precursor-safety-dashboard prototype and includes Inspector Log, WhatsApp, Excel, PDF Scan and Email inputs. The strongest demo cluster is **Zone B · Tower 3**, where four reports describe recurring fall/scaffolding precursors. fileciteturn38file0
+
+## 🧪 Verification
+
+Run the dependency-light smoke test before presenting:
+
+```bash
+python tests/smoke_test.py
+```
+
+The test verifies the eight-report demo dataset, Tower 3 clustering, CRITICAL escalation and live report extraction.
+
+GitHub Actions also compiles the Python code and runs the smoke test on pushes and pull requests.
+
 ## 🏗️ Project structure
 
 ```text
 SafeSense-AI/
 ├── backend/
-│   ├── main.py          # FastAPI routes
+│   ├── main.py          # FastAPI API, CORS, upload limits, alerts
 │   ├── analyzer.py      # NLP/LLM extraction + risk + clustering
-│   ├── schemas.py       # Pydantic safety schemas
+│   ├── schemas.py       # Validated safety schemas
+│   ├── storage.py       # SQLite persistence + feedback
 │   └── ocr.py           # TXT/PDF/image extraction
 ├── dashboard/
-│   └── app.py           # Judge-ready Streamlit UI
+│   └── app.py           # Streamlit fallback/judge dashboard
+├── frontend/
+│   ├── src/App.jsx     # Bolt-publishable judge UI
+│   ├── src/style.css
+│   └── package.json
 ├── data/
 │   ├── demo_reports.json
 │   └── precursor_export.json
+├── docs/BOLT_PUBLISH.md
+├── render.yaml
+├── Dockerfile
 ├── .env.example
 ├── requirements.txt
-├── Dockerfile
 └── README.md
 ```
 
