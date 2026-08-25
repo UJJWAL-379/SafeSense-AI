@@ -1,0 +1,8 @@
+[
+  {"report_id":"R001","text":"Worker noticed scaffold boards loose near Zone B. No injury. Guard rail was missing on the east side."},
+  {"report_id":"R002","text":"Contractor complaint: scaffold platform in Zone B moved when stepped on. No one hurt. Supervisor asked to fix later."},
+  {"report_id":"R003","text":"Inspection note: loose scaffolding and damaged guard rail observed around Zone B. Near miss only."},
+  {"report_id":"R004","text":"Worker slipped near storage area because of oil spill. Minor injury reported and area cleaned."},
+  {"report_id":"R005","text":"Electrical cable insulation damaged near Pump House. No shock, but sparks were observed during startup."},
+  {"report_id":"R006","text":"Scaffold ladder missing locking pin in Zone B. Reported as a near miss; equipment was not immediately tagged out."}
+]
