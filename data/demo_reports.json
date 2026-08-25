@@ -1,8 +1,10 @@
 [
-  {"report_id":"R001","text":"Worker noticed scaffold boards loose near Zone B. No injury. Guard rail was missing on the east side."},
-  {"report_id":"R002","text":"Contractor complaint: scaffold platform in Zone B moved when stepped on. No one hurt. Supervisor asked to fix later."},
-  {"report_id":"R003","text":"Inspection note: loose scaffolding and damaged guard rail observed around Zone B. Near miss only."},
-  {"report_id":"R004","text":"Worker slipped near storage area because of oil spill. Minor injury reported and area cleaned."},
-  {"report_id":"R005","text":"Electrical cable insulation damaged near Pump House. No shock, but sparks were observed during startup."},
-  {"report_id":"R006","text":"Scaffold ladder missing locking pin in Zone B. Reported as a near miss; equipment was not immediately tagged out."}
+  {"report_id":"RPT-001","text":"Date: 12/08/25 Site: Zone B - Scaffolding area. Worker Rajesh noted guard rail missing near tower 3. Potential fall hazard. No injury."},
+  {"report_id":"RPT-002","text":"Tower 3 scaffolding loose hai, gir sakta hai - 2nd time this week. Rajesh bola guard rail missing hai. Zone B"},
+  {"report_id":"RPT-003","text":"INSPECTION LOG #4421 | LOTO not followed during maintenance of conveyor belt C-12. Worker fatigue - 12hr shift. Zone B."},
+  {"report_id":"RPT-004","text":"Near miss: chemical spill - HCl drum leaked in storage S1. No PPE kit available. Worker exposed, minor irritation."},
+  {"report_id":"RPT-005","text":"Tower 3 scaffolding wobbling again!!! 3rd complaint. Bolt missing. Zone B. If someone falls?? @safety"},
+  {"report_id":"RPT-006","text":"Electrical panel E-7 open, live wires exposed. Zone A. Night shift. Risk of electrocution."},
+  {"report_id":"RPT-007","text":"Fall arrest harness expired - checked date 2023. Still in use at height work in Zone B tower 3. LOTO tag missing also."},
+  {"report_id":"RPT-008","text":"fire extingusher missing near welding station WS-2, sparks flying, oil rags nearby. Zone C. Immediate risk."}
 ]
