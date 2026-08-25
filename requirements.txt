@@ -6,6 +6,9 @@ openai==1.99.9
 streamlit==1.48.1
 pandas==2.3.1
 scikit-learn==1.7.1
+sentence-transformers==5.1.0
+requests==2.32.4
+openpyxl==3.1.5
 python-multipart==0.0.20
 pytesseract==0.3.13
 Pillow==11.3.0
