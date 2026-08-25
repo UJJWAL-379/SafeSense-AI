@@ -59,10 +59,10 @@ PDF / Image / TXT / WhatsApp / Email / Excel
 ## ✨ Features
 
 - Raw safety-report text analysis
-- TXT/PDF/image upload through the FastAPI backend
+- TXT/PDF/image/Excel upload through the FastAPI backend
 - OCR using Tesseract for images
 - PDF text extraction using pypdf
-- Excel-ready ingestion path
+- Excel sheet extraction using pandas
 - Optional OpenAI structured extraction
 - Deterministic local fallback — **the core demo works without an API key**
 - Hazard classification: fall, electrical, chemical, fire, equipment, lifting, housekeeping
@@ -96,7 +96,7 @@ Set `VITE_API_URL` to the backend URL when the API is not running on `http://loc
 
 ### Bolt publishing
 
-Bolt's official QuickStart describes the final publishing flow as **Publish → Publish confirmation → wait for deployment → open the published URL**. urlBolt QuickStart — Publish your projecthttps://support.bolt.new/get-started/quickstart#part-8-publish-your-project
+Bolt's official QuickStart describes the final publishing flow as **Publish → Publish confirmation → wait for deployment → open the published URL**.
 
 See [`docs/BOLT_PUBLISH.md`](docs/BOLT_PUBLISH.md) for the recommended architecture and exact judge-demo setup.
 
@@ -197,7 +197,7 @@ If the LLM is unavailable, SafeSense automatically falls back to the local expla
 
 ## 🧪 Demo dataset
 
-`data/precursor_export.json` is based on the supplied precursor-safety-dashboard prototype and includes Inspector Log, WhatsApp, Excel, PDF Scan and Email inputs. The strongest demo cluster is **Zone B · Tower 3**, where four reports describe recurring fall/scaffolding precursors. fileciteturn38file0
+`data/precursor_export.json` is based on the supplied precursor-safety-dashboard prototype and includes Inspector Log, WhatsApp, Excel, PDF Scan and Email inputs. The strongest demo cluster is **Zone B · Tower 3**, where four reports describe recurring fall/scaffolding precursors.
 
 ## 🧪 Verification
 
@@ -220,11 +220,11 @@ SafeSense-AI/
 │   ├── analyzer.py      # NLP/LLM extraction + risk + clustering
 │   ├── schemas.py       # Validated safety schemas
 │   ├── storage.py       # SQLite persistence + feedback
-│   └── ocr.py           # TXT/PDF/image extraction
+│   └── ocr.py           # TXT/PDF/image/Excel extraction
 ├── dashboard/
 │   └── app.py           # Streamlit fallback/judge dashboard
 ├── frontend/
-│   ├── src/App.jsx     # Bolt-publishable judge UI
+│   ├── src/App.jsx      # Bolt-publishable judge UI
 │   ├── src/style.css
 │   └── package.json
 ├── data/
