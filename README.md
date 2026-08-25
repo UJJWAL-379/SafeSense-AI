@@ -1,38 +1,63 @@
 # 🛡️ SafeSense AI
 
-### AI/NLP Engine to Detect Safety Precursors
+### AI/NLP Early-Warning Engine for Safety Precursors
 
-SafeSense turns messy workplace safety reports into **structured risk signals** and detects recurring precursor patterns before they become serious incidents.
+SafeSense turns messy workplace safety reports into **structured risk signals**, connects recurring precursor patterns across reports, and gives safety teams an explainable early warning before a serious incident.
 
-> **Hackathon value proposition:** reports already exist — SafeSense makes them searchable, comparable and actionable at scale.
+> **Core idea:** minor reports individually → repeated pattern collectively → actionable early warning.
 
-## 🎯 Judge demo in 60 seconds
+## 🎯 Why this matters
 
-1. Open the published web frontend or run `frontend/` locally.
-2. Open **Precursor cluster demo**.
+Factories, mines, construction sites and other high-risk organizations generate incident logs, near-miss reports, inspection notes, worker complaints, emails and spreadsheets. These reports are often noisy, abbreviated, typo-filled or mixed-language, so important precursor signals can remain buried in paperwork.
+
+SafeSense adds an intelligence layer **without requiring organizations to change how they report incidents**.
+
+---
+
+## 🏆 60-second SIH judge demo
+
+1. Open the web frontend.
+2. Choose **Precursor Cluster Demo**.
 3. Keep all eight demo reports selected.
 4. Click **Detect Emerging Safety Risks**.
-5. Show RPT-001, RPT-002, RPT-005 and RPT-007 converging on **Zone B · Tower 3 / fall risk**.
-6. The system raises a **CRITICAL emerging precursor cluster** and recommends an immediate safety inspection.
-7. Switch to **Live report** and paste a messy Hinglish/English note.
-8. Show the structured hazard, location, severity, risk score and urgency.
-9. If desired, use the Streamlit dashboard for PDF/image OCR and safety-officer feedback.
+5. Show how `RPT-001`, `RPT-002`, `RPT-005` and `RPT-007` converge on **Zone B · Tower 3 / fall risk**.
+6. Show the **CRITICAL emerging-risk alert** and recommended corrective action.
+7. Open the linked reports and show that they came from different reporting channels and contain different wording.
+8. Switch to **Live Report** and enter:
 
-The key story is: **minor reports individually → repeated pattern collectively → early warning.**
+   `Tower 3 scaffolding loose hai, gir sakta hai. 2nd time. Guard rail missing. Zone B.`
 
-## 🧠 Architecture
+9. Show the extracted hazard, location, asset, severity, risk score, root causes and urgency.
+10. Explain the differentiator: **SafeSense connects reports that humans may review separately.**
+
+### The "aha" moment
+
+```text
+RPT-001  Missing guard rail        ┐
+RPT-002  Scaffolding loose         │
+RPT-005  Wobbling / 3rd complaint  ├──► Zone B · Tower 3
+RPT-007  Expired fall harness      │
+                                   ┘
+                                       ↓
+                               🚨 CRITICAL RISK
+                               Immediate inspection
+```
+
+---
+
+## 🧠 Technical architecture
 
 ```text
 PDF / Image / TXT / WhatsApp / Email / Excel
                     │
                     ▼
-              OCR / Text Input
+             Ingestion + OCR
                     │
                     ▼
-          Normalization & cleanup
-          ├─ OCR noise handling
-          ├─ abbreviations (PPE/LOTO)
-          └─ mixed-language normalization
+         Text normalization layer
+         ├─ OCR noise cleanup
+         ├─ PPE / LOTO normalization
+         └─ mixed-language normalization
                     │
                     ▼
              LLM / NLP extraction
@@ -42,71 +67,162 @@ PDF / Image / TXT / WhatsApp / Email / Excel
                     │
           ┌─────────┴─────────┐
           ▼                   ▼
-    Risk scoring       Cross-report clustering
-          │                   │
-          └─────────┬─────────┘
+    Explainable risk     Similarity / clustering
+       scoring                 │
+          │                    │
+          └─────────┬──────────┘
                     ▼
-          Emerging precursor alert
+             Emerging risk
                     │
           ┌─────────┴─────────┐
           ▼                   ▼
-   React/Bolt web UI      Streamlit UI
-                    │
-                    ▼
-                 Judges
+      Web frontend       Streamlit fallback
+          │
+          ▼
+       Judges / Safety Team
 ```
 
-## ✨ Features
+---
 
-- Raw safety-report text analysis
-- TXT/PDF/image/Excel upload through the FastAPI backend
-- OCR using Tesseract for images
-- PDF text extraction using pypdf
-- Excel sheet extraction using pandas
-- Optional OpenAI structured extraction
-- Deterministic local fallback — **the core demo works without an API key**
-- Hazard classification: fall, electrical, chemical, fire, equipment, lifting, housekeeping
+## ✨ Key features
+
+### Ingestion
+- TXT reports
+- PDF reports
+- Scanned images
+- Excel logs
+- Free-text / WhatsApp-style reports
+
+### NLP / AI
+- Hazard classification
 - Location and asset extraction
-- Severity and explainable 0–100 risk score
-- Root-cause and precursor-term extraction
-- Cross-report hazard/location clustering
-- CRITICAL/HIGH/MEDIUM emerging-risk levels
+- Severity classification
+- Root-cause extraction
+- Precursor-term extraction
+- Date/frequency signals
+- Hinglish/code-mixed normalization
+- Optional structured LLM extraction
+- Deterministic local fallback for reliable demos
+
+### Intelligence
+- Explainable 0–100 risk score
+- Cross-report precursor clustering
+- Recurring hazard/location detection
+- Emerging-risk levels: **MEDIUM / HIGH / CRITICAL**
 - Recommended corrective action
-- Webhook alert integration
+- Alert/webhook integration
 - Safety-officer confirm/reject feedback loop
+
+### Product
+- Judge-focused React/Vite frontend
+- Streamlit fallback dashboard
 - SQLite persistence for the prototype
-- Responsive React/Vite judge-facing frontend
-- Streamlit dashboard for local/demo workflows
-- Dockerized FastAPI backend
-- Health endpoint and deployment configuration
+- FastAPI API
+- Docker support
+- Health endpoint
+- GitHub Actions CI
+- Bolt-compatible frontend publishing workflow
 
-## 🖥️ Published web frontend
+---
 
-The `frontend/` directory is a lightweight Vite + React judge-facing application designed to be imported into Bolt and published. It calls the FastAPI backend through `VITE_API_URL`.
+## 🔍 How the risk score works
 
-For local frontend development:
+The prototype combines:
+
+- Base severity
+- Critical/high-risk language
+- Repeated complaints or recurrence
+- Exposure indicators
+- Root-cause signals
+- Hazard context
+
+The score is deliberately **explainable** rather than a black-box prediction.
+
+Example:
+
+```text
+Missing guard rail       → precursor
+Wobbling scaffolding     → structural signal
+3rd complaint            → recurrence bonus
+Tower 3 / Zone B         → repeated location
+Expired harness          → exposure increase
+
+                 ↓
+        Emerging CRITICAL cluster
+```
+
+Production deployments should calibrate the scoring model against the organization's formal risk matrix and safety procedures.
+
+---
+
+## 🧩 Cross-report intelligence
+
+The strongest differentiator is not extracting keywords from one report. SafeSense combines signals across reports using **hazard, location, asset, recurrence and similarity**.
+
+The demo dataset contains eight reports from multiple source types, including Inspector Log, WhatsApp, Excel, PDF Scan and Email. Four reports converge on **Zone B · Tower 3**, creating the central demo cluster.
+
+```text
+4 separate reports
+       ↓
+Different wording + different channels
+       ↓
+Structured signals
+       ↓
+Cross-report pattern detection
+       ↓
+Emerging precursor cluster
+       ↓
+Human verification + corrective action
+```
+
+---
+
+## 🖥️ Web frontend and Bolt publishing
+
+The `frontend/` directory contains the judge-facing Vite + React application.
+
+It is designed to be imported into Bolt and published as the browser-facing experience. Bolt's official QuickStart says to publish by clicking **Publish**, confirming the second Publish action, waiting for deployment, and opening the generated URL. urlBolt QuickStart — Part 8: Publish your projecthttps://support.bolt.new/get-started/quickstart#part-8-publish-your-project
+
+### Recommended deployment architecture
+
+```text
+Bolt-published React frontend
+            │
+            │ HTTPS
+            ▼
+      FastAPI backend
+            │
+      ┌─────┼─────┐
+      ▼     ▼     ▼
+     OCR   NLP   SQLite
+            │
+            ▼
+       Risk engine
+            │
+            ▼
+        Clustering
+```
+
+The Python backend must be deployed separately if the published frontend needs live API access. The backend should be exposed through HTTPS and configured with the frontend origin.
+
+**Never expose `OPENAI_API_KEY` in frontend variables.** Keep secrets only on the backend.
+
+See [`docs/BOLT_PUBLISH.md`](docs/BOLT_PUBLISH.md) for the deployment checklist.
+
+---
+
+## 🚀 Local setup
+
+Requires Python 3.10+ and Node.js 18+ for the React frontend.
+
+### 1. Clone
 
 ```bash
-cd frontend
-npm install
-npm run dev
+git clone https://github.com/UJJWAL-379/SafeSense-AI.git
+cd SafeSense-AI
 ```
 
-Set `VITE_API_URL` to the backend URL when the API is not running on `http://localhost:8000`.
-
-### Bolt publishing
-
-Bolt's official QuickStart describes the final publishing flow as **Publish → Publish confirmation → wait for deployment → open the published URL**.
-
-See [`docs/BOLT_PUBLISH.md`](docs/BOLT_PUBLISH.md) for the recommended architecture and exact judge-demo setup.
-
-**Important:** Bolt hosts the browser-facing web experience. The Python FastAPI service still needs to be deployed separately over HTTPS for live AI analysis. Do not expose `OPENAI_API_KEY` in frontend environment variables.
-
-## 🚀 Run locally
-
-Requires Python 3.10+.
-
-### Backend
+### 2. Backend
 
 ```bash
 python -m venv .venv
@@ -115,7 +231,7 @@ python -m venv .venv
 Windows:
 
 ```bash
-.venv\\Scripts\\activate
+.venv\Scripts\activate
 ```
 
 macOS/Linux:
@@ -130,17 +246,11 @@ cp .env.example .env
 uvicorn backend.main:app --reload
 ```
 
-API docs are available at `/docs` and health at `/health`.
+API docs: `http://localhost:8000/docs`
 
-### Streamlit fallback dashboard
+Health check: `http://localhost:8000/health`
 
-In another terminal:
-
-```bash
-streamlit run dashboard/app.py
-```
-
-### React web frontend
+### 3. React frontend
 
 ```bash
 cd frontend
@@ -148,33 +258,31 @@ npm install
 npm run dev
 ```
 
-## ☁️ Production/demo deployment
-
-The backend includes a Dockerfile and `render.yaml` deployment configuration. Deploy the FastAPI service and obtain its HTTPS URL. Then set the frontend's:
+If the backend is not on the default URL, set:
 
 ```text
-VITE_API_URL=https://YOUR-BACKEND.example.com
+VITE_API_URL=http://localhost:8000
 ```
 
-Also configure backend CORS:
+### 4. Streamlit fallback
 
-```text
-CORS_ORIGINS=https://YOUR-BOLT-PUBLISHED-DOMAIN.example.com
+```bash
+streamlit run dashboard/app.py
 ```
 
-Keep `OPENAI_API_KEY` and `ALERT_WEBHOOK_URL` on the backend only.
+---
 
 ## 🔌 API endpoints
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /` | Service metadata and links |
+| `GET /` | Service metadata |
 | `GET /health` | Deployment health check |
 | `POST /analyze` | Analyze one text report |
 | `POST /analyze-file` | Analyze TXT/PDF/image/Excel upload |
-| `POST /cluster` | Analyze multiple reports and detect recurring clusters |
+| `POST /cluster` | Analyze multiple reports and detect recurring patterns |
 | `POST /feedback` | Save safety-officer confirmation/rejection |
-| `GET /feedback-summary` | Feedback counts |
+| `GET /feedback-summary` | Feedback statistics |
 
 Example:
 
@@ -184,64 +292,119 @@ curl -X POST http://localhost:8000/analyze \
   -d '{"report_id":"DEMO-01","text":"Tower 3 scaffolding wobbling again. Bolt missing. Zone B."}'
 ```
 
-## 🔐 LLM mode
+---
 
-Set:
+## 🤖 LLM mode
+
+Configure:
 
 ```text
 OPENAI_API_KEY=your_key
 OPENAI_MODEL=gpt-4o-mini
 ```
 
-If the LLM is unavailable, SafeSense automatically falls back to the local explainable extractor. This is deliberate for hackathon reliability.
+The application uses structured JSON extraction when an API key is available.
 
-## 🧪 Demo dataset
+If the LLM is unavailable, SafeSense automatically uses the deterministic local extractor. This is intentional: **the core judge demo should not fail because of an external API.**
 
-`data/precursor_export.json` is based on the supplied precursor-safety-dashboard prototype and includes Inspector Log, WhatsApp, Excel, PDF Scan and Email inputs. The strongest demo cluster is **Zone B · Tower 3**, where four reports describe recurring fall/scaffolding precursors.
+---
 
-## 🧪 Verification
+## 🧪 Pre-presentation verification
 
-Run the dependency-light smoke test before presenting:
+Run:
 
 ```bash
 python tests/smoke_test.py
 ```
 
-The test verifies the eight-report demo dataset, Tower 3 clustering, CRITICAL escalation and live report extraction.
+Then verify the frontend production build:
 
-GitHub Actions also compiles the Python code and runs the smoke test on pushes and pull requests.
+```bash
+cd frontend
+npm install
+npm run build
+```
 
-## 🏗️ Project structure
+Before the event, perform the complete judge flow once from the same environment you will use during the presentation.
+
+GitHub Actions compiles the Python code and runs the smoke test on pushes and pull requests.
+
+---
+
+## 📁 Project structure
 
 ```text
 SafeSense-AI/
 ├── backend/
-│   ├── main.py          # FastAPI API, CORS, upload limits, alerts
-│   ├── analyzer.py      # NLP/LLM extraction + risk + clustering
-│   ├── schemas.py       # Validated safety schemas
-│   ├── storage.py       # SQLite persistence + feedback
-│   └── ocr.py           # TXT/PDF/image/Excel extraction
+│   ├── main.py              # FastAPI API + validation + alerts
+│   ├── analyzer.py          # NLP/LLM + scoring + clustering
+│   ├── schemas.py           # Pydantic models
+│   ├── storage.py           # SQLite persistence + feedback
+│   └── ocr.py               # TXT/PDF/image/Excel extraction
 ├── dashboard/
-│   └── app.py           # Streamlit fallback/judge dashboard
+│   └── app.py               # Streamlit fallback dashboard
 ├── frontend/
-│   ├── src/App.jsx      # Bolt-publishable judge UI
-│   ├── src/style.css
-│   └── package.json
+│   ├── src/
+│   │   ├── App.jsx          # Judge-facing React UI
+│   │   ├── main.jsx
+│   │   └── style.css
+│   ├── package.json
+│   └── vite.config.js
 ├── data/
 │   ├── demo_reports.json
 │   └── precursor_export.json
-├── docs/BOLT_PUBLISH.md
-├── render.yaml
+├── docs/
+│   └── BOLT_PUBLISH.md
+├── tests/
+│   └── smoke_test.py
+├── .github/workflows/
+│   └── ci.yml
 ├── Dockerfile
+├── render.yaml
 ├── .env.example
 ├── requirements.txt
 └── README.md
 ```
 
-## ⚠️ Important safety boundary
+---
 
-SafeSense is a **decision-support prototype**, not an autonomous safety authority. Its outputs must be verified by qualified safety personnel and should not replace emergency procedures, inspections, statutory reporting or formal risk assessments. Production deployment requires organization-specific validation and calibration.
+## 🛡️ Safety boundary
 
-## 🏆 What makes this different
+SafeSense is a **decision-support prototype**, not an autonomous safety authority.
 
-The innovation is not simply extracting keywords. SafeSense connects **time, location, asset, hazard and repeated language across many unstructured reports**. That enables a safety team to act on an emerging pattern before it becomes a major incident.
+Its outputs must be reviewed by qualified safety professionals and should not replace emergency procedures, statutory reporting, site inspections, formal risk assessments, permit-to-work systems, or organization-specific safety standards.
+
+Production deployment requires validation, security review, privacy controls and calibration against the organization's approved safety methodology.
+
+---
+
+## 🚀 Future enhancements
+
+1. **True semantic embeddings** for reports with different wording but the same meaning.
+2. **Timeline-based precursor escalation** showing how risk grows over days.
+3. **Explainable “Why flagged?” panel** showing exactly which signals triggered an alert.
+4. **Before/after comparison**: separate reports versus one emerging-risk cluster.
+5. **One-click Judge Demo** that automatically runs the complete Tower 3 scenario.
+6. Organization-specific hazard taxonomies and risk matrices.
+7. Role-based access control and audit trails.
+8. PostgreSQL/vector database deployment for production scale.
+
+---
+
+## 🏆 Why SafeSense is different
+
+Traditional safety systems store reports. SafeSense **connects them**.
+
+```text
+Unstructured reports
+        ↓
+Structured signals
+        ↓
+Recurring patterns
+        ↓
+Prioritized risk
+        ↓
+Human action
+```
+
+The goal is not to replace safety officers. The goal is to help them notice warning signs they would otherwise have to discover manually across hundreds or thousands of reports.
