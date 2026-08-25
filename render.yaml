@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: safesense-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: ALERT_WEBHOOK_URL
+        sync: false
