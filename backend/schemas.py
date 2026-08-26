@@ -24,6 +24,9 @@ class SafetySignal(BaseModel):
 
 class ClusterRequest(BaseModel):
     reports: List[SafetyReport] = Field(min_length=1, max_length=100)
+    # The judge demo can explicitly use the deterministic NLP extractor so it
+    # remains fast and reliable even when an external LLM is slow/unavailable.
+    use_llm: bool = False
 
 
 class Cluster(BaseModel):
