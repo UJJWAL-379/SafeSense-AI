@@ -1,13 +1,18 @@
 """Fast, dependency-light smoke test for the hackathon demo."""
 import json
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from backend.analyzer import fallback_extract, cluster_signals
 from backend.schemas import SafetyReport
 
 
 def main():
-    data = json.loads(Path("data/demo_reports.json").read_text(encoding="utf-8"))
+    data = json.loads((ROOT / "data/demo_reports.json").read_text(encoding="utf-8"))
     signals = [fallback_extract(r["text"], r["report_id"]) for r in data]
     clusters = cluster_signals(signals)
 
