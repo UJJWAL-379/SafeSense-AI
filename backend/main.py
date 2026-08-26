@@ -7,17 +7,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .schemas import SafetyReport, ClusterRequest
-from .analyzer import llm_extract, cluster_signals
+from .analyzer import fallback_extract, llm_extract, cluster_signals
 from .ocr import extract_text_from_file
 from .storage import init_db, save_signal, save_feedback, feedback_summary
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "10")) * 1024 * 1024
 
 app = FastAPI(title="SafeSense AI", version=APP_VERSION, description="AI/NLP early-warning engine for safety precursors")
 
-# Public frontend deployments need browser CORS. Keep it configurable instead of
-# allowing every origin by default in production.
 allowed_origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:8501").split(",") if x.strip()]
 app.add_middleware(
     CORSMiddleware,
@@ -91,9 +89,16 @@ def analyze(report: SafetyReport):
 
 @app.post("/cluster")
 def cluster(request: ClusterRequest):
+    """Cluster endpoint supports a fast deterministic mode for live judging.
+
+    The React demo sends use_llm=false so the cluster demo is not dependent on
+    network latency, API credits, or an external model. Real deployments can
+    set use_llm=true when LLM extraction is desired.
+    """
     signals = []
+    extractor = llm_extract if request.use_llm else fallback_extract
     for report in request.reports:
-        signal = llm_extract(report.text, report.report_id)
+        signal = extractor(report.text, report.report_id)
         signals.append(signal)
         save_signal(report.report_id or "UNNAMED", report.text, signal)
     clusters = cluster_signals(signals)
