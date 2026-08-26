@@ -19,6 +19,7 @@ HAZARDS = {
     "housekeeping": ["oil spill", "slip", "trip", "obstruction", "housekeeping", "leakage"],
 }
 SEVERITY_WEIGHT = {"low": 10, "medium": 30, "high": 60, "critical": 85, "near-miss": 25}
+GENERIC_PRECURSORS = {"missing", "damaged", "unsafe", "loose", "expired", "complaint", "again", "repeat", "near miss", "near-miss"}
 
 
 def _contains(text: str, words: list[str]) -> list[str]:
@@ -126,13 +127,8 @@ def llm_extract(text: str, report_id: str | None = None) -> SafetySignal:
         return fallback_extract(text, report_id)
 
 
-def _semantic_groups(signals: list[SafetySignal], threshold: float = 0.52) -> tuple[list[list[int]], str]:
-    """Group reports by meaning without forcing a heavy embedding model on the demo.
-
-    TF-IDF is the default because it is fast, deterministic and needs no model
-    download. Set USE_EMBEDDINGS=true to enable sentence-transformers for a
-    production-style semantic similarity pass.
-    """
+def _semantic_groups(signals: list[SafetySignal], threshold: float = 0.60) -> tuple[list[list[int]], str]:
+    """Conservative clustering: semantic similarity cannot override a hazard mismatch."""
     if len(signals) < 2:
         return [], "none"
     texts = [f"{s.hazard_type} {s.location} {s.asset} {s.event_type} {' '.join(s.root_causes)} {' '.join(s.precursor_terms)}" for s in signals]
@@ -153,6 +149,7 @@ def _semantic_groups(signals: list[SafetySignal], threshold: float = 0.52) -> tu
         matrix = TfidfVectorizer(ngram_range=(1, 2), stop_words="english").fit_transform(texts)
         sim = cosine_similarity(matrix)
         similarity_method = "TF-IDF cosine similarity"
+
     parent = list(range(len(signals)))
     def find(x: int) -> int:
         while parent[x] != x:
@@ -163,12 +160,25 @@ def _semantic_groups(signals: list[SafetySignal], threshold: float = 0.52) -> tu
         ra, rb = find(a), find(b)
         if ra != rb:
             parent[rb] = ra
+
     for i in range(len(signals)):
         for j in range(i + 1, len(signals)):
-            same_location = signals[i].location != "unknown" and signals[i].location.lower() == signals[j].location.lower()
-            same_hazard = signals[i].hazard_type == signals[j].hazard_type and signals[i].hazard_type != "unknown"
-            if sim[i, j] >= threshold or (same_hazard and same_location and sim[i, j] >= 0.35):
+            a, b = signals[i], signals[j]
+            same_hazard = a.hazard_type != "unknown" and a.hazard_type == b.hazard_type
+            same_location = a.location != "unknown" and a.location.lower() == b.location.lower()
+            same_asset = a.asset != "unknown" and a.asset.lower() == b.asset.lower()
+            shared_root = bool(set(a.root_causes) & set(b.root_causes))
+            specific_a = set(a.precursor_terms) - GENERIC_PRECURSORS
+            specific_b = set(b.precursor_terms) - GENERIC_PRECURSORS
+            shared_specific = bool(specific_a & specific_b)
+
+            # The important judge-demo rule: same hazard must be present. This prevents
+            # a generic "Zone B" or "missing" signal from joining an unrelated hazard.
+            strong_context = same_hazard and (same_location or same_asset)
+            semantic_link = same_hazard and sim[i, j] >= threshold and (same_location or same_asset or shared_root or shared_specific)
+            if strong_context or semantic_link:
                 union(i, j)
+
     groups: dict[int, list[int]] = {}
     for i in range(len(signals)):
         groups.setdefault(find(i), []).append(i)
@@ -180,11 +190,13 @@ def cluster_signals(signals: list[SafetySignal]) -> list[dict[str, Any]]:
     results = []
     for idx, indices in enumerate(groups, start=1):
         items = [signals[i] for i in indices]
-        causes = Counter(c for s in items for c in s.root_causes + s.precursor_terms)
+        causes = Counter(c for s in items for c in s.root_causes)
+        specific_precursors = Counter(c for s in items for c in s.precursor_terms if c not in GENERIC_PRECURSORS)
+        signal_counts = causes + specific_precursors
         avg_score = round(sum(s.risk_score for s in items) / len(items))
         repetition = sum(1 for s in items if any(x in s.precursor_terms for x in ["again", "repeat", "complaint"]))
         risk = "CRITICAL" if avg_score >= 80 or len(items) >= 5 or (len(items) >= 4 and avg_score >= 55) or repetition >= 2 else "HIGH" if avg_score >= 55 or len(items) >= 3 else "MEDIUM"
-        top_cause = causes.most_common(1)[0][0] if causes else items[0].hazard_type
+        top_cause = signal_counts.most_common(1)[0][0] if signal_counts else items[0].hazard_type
         locations = Counter(s.location for s in items if s.location != "unknown")
         hazards = Counter(s.hazard_type for s in items if s.hazard_type != "unknown")
         location = locations.most_common(1)[0][0] if locations else "multiple/unknown locations"
@@ -195,10 +207,15 @@ def cluster_signals(signals: list[SafetySignal]) -> list[dict[str, Any]]:
             "MEDIUM": "Create a corrective action and verify the condition during the next inspection.",
         }[risk]
         results.append({
-            "cluster_id": idx, "label": f"{hazard.replace('_', ' ').title()} / {location}",
-            "report_ids": [s.report_id or str(i) for i, s in enumerate(items)], "count": len(items), "risk_level": risk,
-            "average_risk_score": avg_score, "recurring_signal": top_cause, "recommendation": action,
-            "explanation": f"{len(items)} reports are semantically similar and indicate a recurring {hazard.replace('_', ' ')} risk around {location}. Top signal: {top_cause}. Average risk score: {avg_score}.",
+            "cluster_id": idx,
+            "label": f"{hazard.replace('_', ' ').title()} / {location}",
+            "report_ids": [s.report_id or str(i) for i, s in enumerate(items)],
+            "count": len(items),
+            "risk_level": risk,
+            "average_risk_score": avg_score,
+            "recurring_signal": top_cause,
+            "recommendation": action,
+            "explanation": f"{len(items)} reports share the same {hazard.replace('_', ' ')} hazard around {location}. Top recurring signal: {top_cause}. Average risk score: {avg_score}.",
             "similarity_method": similarity_method,
         })
     return sorted(results, key=lambda x: (x["risk_level"] != "CRITICAL", -x["average_risk_score"], -x["count"]))
