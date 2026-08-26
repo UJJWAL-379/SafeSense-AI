@@ -126,22 +126,33 @@ def llm_extract(text: str, report_id: str | None = None) -> SafetySignal:
         return fallback_extract(text, report_id)
 
 
-def _semantic_groups(signals: list[SafetySignal], threshold: float = 0.52) -> list[list[int]]:
-    """Group reports by meaning; falls back to TF-IDF if the embedding model is unavailable."""
+def _semantic_groups(signals: list[SafetySignal], threshold: float = 0.52) -> tuple[list[list[int]], str]:
+    """Group reports by meaning without forcing a heavy embedding model on the demo.
+
+    TF-IDF is the default because it is fast, deterministic and needs no model
+    download. Set USE_EMBEDDINGS=true to enable sentence-transformers for a
+    production-style semantic similarity pass.
+    """
     if len(signals) < 2:
-        return []
+        return [], "none"
     texts = [f"{s.hazard_type} {s.location} {s.asset} {s.event_type} {' '.join(s.root_causes)} {' '.join(s.precursor_terms)}" for s in signals]
-    try:
-        from sentence_transformers import SentenceTransformer
-        from sklearn.metrics.pairwise import cosine_similarity
-        model = SentenceTransformer(os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2"))
-        matrix = model.encode(texts, normalize_embeddings=True)
-        sim = cosine_similarity(matrix)
-    except Exception:
+    use_embeddings = os.getenv("USE_EMBEDDINGS", "false").strip().lower() in {"1", "true", "yes", "on"}
+    if use_embeddings:
+        try:
+            from sentence_transformers import SentenceTransformer
+            from sklearn.metrics.pairwise import cosine_similarity
+            model = SentenceTransformer(os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2"))
+            matrix = model.encode(texts, normalize_embeddings=True)
+            sim = cosine_similarity(matrix)
+            similarity_method = "sentence-transformers cosine similarity"
+        except Exception:
+            use_embeddings = False
+    if not use_embeddings:
         from sklearn.feature_extraction.text import TfidfVectorizer
         from sklearn.metrics.pairwise import cosine_similarity
         matrix = TfidfVectorizer(ngram_range=(1, 2), stop_words="english").fit_transform(texts)
         sim = cosine_similarity(matrix)
+        similarity_method = "TF-IDF cosine similarity"
     parent = list(range(len(signals)))
     def find(x: int) -> int:
         while parent[x] != x:
@@ -150,7 +161,8 @@ def _semantic_groups(signals: list[SafetySignal], threshold: float = 0.52) -> li
         return x
     def union(a: int, b: int) -> None:
         ra, rb = find(a), find(b)
-        if ra != rb: parent[rb] = ra
+        if ra != rb:
+            parent[rb] = ra
     for i in range(len(signals)):
         for j in range(i + 1, len(signals)):
             same_location = signals[i].location != "unknown" and signals[i].location.lower() == signals[j].location.lower()
@@ -160,12 +172,13 @@ def _semantic_groups(signals: list[SafetySignal], threshold: float = 0.52) -> li
     groups: dict[int, list[int]] = {}
     for i in range(len(signals)):
         groups.setdefault(find(i), []).append(i)
-    return [g for g in groups.values() if len(g) >= 2]
+    return [g for g in groups.values() if len(g) >= 2], similarity_method
 
 
 def cluster_signals(signals: list[SafetySignal]) -> list[dict[str, Any]]:
+    groups, similarity_method = _semantic_groups(signals)
     results = []
-    for idx, indices in enumerate(_semantic_groups(signals), start=1):
+    for idx, indices in enumerate(groups, start=1):
         items = [signals[i] for i in indices]
         causes = Counter(c for s in items for c in s.root_causes + s.precursor_terms)
         avg_score = round(sum(s.risk_score for s in items) / len(items))
@@ -186,6 +199,6 @@ def cluster_signals(signals: list[SafetySignal]) -> list[dict[str, Any]]:
             "report_ids": [s.report_id or str(i) for i, s in enumerate(items)], "count": len(items), "risk_level": risk,
             "average_risk_score": avg_score, "recurring_signal": top_cause, "recommendation": action,
             "explanation": f"{len(items)} reports are semantically similar and indicate a recurring {hazard.replace('_', ' ')} risk around {location}. Top signal: {top_cause}. Average risk score: {avg_score}.",
-            "similarity_method": "sentence-transformers cosine similarity with TF-IDF fallback",
+            "similarity_method": similarity_method,
         })
     return sorted(results, key=lambda x: (x["risk_level"] != "CRITICAL", -x["average_risk_score"], -x["count"]))
