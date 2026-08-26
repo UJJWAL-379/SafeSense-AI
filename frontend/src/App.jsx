@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const REQUEST_TIMEOUT_MS = 15000;
 
 const demoReports = [
   { report_id:'RPT-001', text:'Date: 12/08/25 Site: Zone B - Scaffolding area. Worker Rajesh noted guard rail missing near tower 3. Potential fall hazard. No injury.' },
@@ -15,6 +16,16 @@ const demoReports = [
 
 function levelClass(level='MEDIUM') { return level.toLowerCase(); }
 
+async function fetchWithTimeout(url, options = {}, timeout = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default function App() {
   const [mode, setMode] = useState('cluster');
   const [selected, setSelected] = useState(demoReports.map(r => r.report_id));
@@ -22,27 +33,31 @@ export default function App() {
   const [text, setText] = useState('Tower 3 scaffolding wobbling again. Bolt missing. Zone B. No injury.');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('Ready for demo');
+  const [error, setError] = useState('');
   const chosen = useMemo(() => demoReports.filter(r => selected.includes(r.report_id)), [selected]);
 
   async function analyzeCluster() {
-    setBusy(true); setStatus('Running NLP extraction and precursor detection…');
+    setBusy(true); setError(''); setStatus('Running NLP extraction and precursor detection…');
     try {
-      const r = await fetch(`${API}/cluster`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({reports:chosen}) });
+      const r = await fetchWithTimeout(`${API}/cluster`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({reports:chosen, use_llm:false}) });
       if (!r.ok) throw new Error(`Backend returned ${r.status}`);
       setResult(await r.json()); setStatus('Analysis complete');
     } catch (e) {
-      setStatus('Backend unavailable — use the Streamlit/local demo or configure VITE_API_URL.');
+      setStatus('Analysis failed');
+      setError(e.name === 'AbortError' ? 'The backend took too long to respond. Check that FastAPI is running on port 8000.' : `Could not reach SafeSense API at ${API}.`);
     } finally { setBusy(false); }
   }
 
   async function analyzeOne() {
-    setBusy(true); setStatus('Extracting structured safety signals…');
+    setBusy(true); setError(''); setStatus('Extracting structured safety signals…');
     try {
-      const r = await fetch(`${API}/analyze`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({report_id:'LIVE-WEB-001', text}) });
+      const r = await fetchWithTimeout(`${API}/analyze`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({report_id:'LIVE-WEB-001', text}) });
       if (!r.ok) throw new Error(`Backend returned ${r.status}`);
       setResult({signals:[await r.json()], clusters:[]}); setStatus('Report analyzed');
-    } catch (e) { setStatus('Backend unavailable — configure VITE_API_URL for the published frontend.'); }
-    finally { setBusy(false); }
+    } catch (e) {
+      setStatus('Analysis failed');
+      setError(e.name === 'AbortError' ? 'The backend took too long to respond. Check your API key/network.' : `Could not reach SafeSense API at ${API}.`);
+    } finally { setBusy(false); }
   }
 
   const critical = result?.clusters?.find(c => c.risk_level === 'CRITICAL');
@@ -63,8 +78,9 @@ export default function App() {
       {mode==='cluster' ? <section className="panel">
         <div className="panel-head"><div><h2>Cross-report intelligence</h2><p>These reports come from different channels and look minor individually.</p></div><button className="primary" disabled={busy || !chosen.length} onClick={analyzeCluster}>{busy?'Analyzing…':'Detect Emerging Safety Risks'}</button></div>
         <div className="selection">{demoReports.map(r => <label key={r.report_id} className="check"><input type="checkbox" checked={selected.includes(r.report_id)} onChange={e=>setSelected(e.target.checked?[...selected,r.report_id]:selected.filter(x=>x!==r.report_id))}/><span>{r.report_id}</span></label>)}</div>
+        {error && <div className="alert"><div className="alert-title">⚠️ Backend connection problem</div><p>{error}</p><small>Make sure FastAPI is running at http://localhost:8000 and refresh the page after restarting it.</small></div>}
         {critical && <div className="alert"><div className="alert-title">🚨 CRITICAL EMERGING PRECURSOR</div><h2>{critical.label}</h2><p>{critical.explanation}</p><div className="action"><strong>Recommended action</strong><br/>{critical.recommendation}</div><div className="linked">Linked reports: {critical.report_ids.join(' · ')}</div></div>}
-      </section> : <section className="panel"><div className="panel-head"><div><h2>Analyze a new safety report</h2><p>Paste a raw, typo-filled or mixed-language report.</p></div><button className="primary" disabled={busy} onClick={analyzeOne}>{busy?'Analyzing…':'Analyze Report'}</button></div><textarea value={text} onChange={e=>setText(e.target.value)} /><div className="hint">Example: “Tower 3 scaffolding loose hai, gir sakta hai… Zone B.”</div></section>}
+      </section> : <section className="panel"><div className="panel-head"><div><h2>Analyze a new safety report</h2><p>Paste a raw, typo-filled or mixed-language report.</p></div><button className="primary" disabled={busy} onClick={analyzeOne}>{busy?'Analyzing…':'Analyze Report'}</button></div><textarea value={text} onChange={e=>setText(e.target.value)} /><div className="hint">Example: “Tower 3 scaffolding loose hai, gir sakta hai… Zone B.”</div>{error && <div className="alert"><div className="alert-title">⚠️ Analysis problem</div><p>{error}</p></div>}</section>}
 
       {result?.signals?.length > 0 && <section className="panel"><div className="metrics">{[['Reports',result.signals.length],['High+ signals',result.signals.filter(s=>s.risk_score>=55).length],['Clusters',result.clusters?.length||0],['Max risk',Math.max(...result.signals.map(s=>s.risk_score))]].map(([k,v])=><div className="metric" key={k}><small>{k}</small><strong>{v}</strong></div>)}</div><h2>Extracted safety signals</h2><div className="table-wrap"><table><thead><tr><th>Report</th><th>Hazard</th><th>Location</th><th>Severity</th><th>Risk</th><th>Urgency</th></tr></thead><tbody>{result.signals.map(s=><tr key={s.report_id}><td>{s.report_id}</td><td>{s.hazard_type}</td><td>{s.location}</td><td>{s.severity}</td><td><b>{s.risk_score}</b></td><td><span className={`pill ${levelClass(s.urgency)}`}>{s.urgency}</span></td></tr>)}</tbody></table></div></section>}
 
